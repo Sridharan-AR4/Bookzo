@@ -1,0 +1,25 @@
+.swiper-button-prev,
+.swiper-button-next {
+    opacity: 0;
+    color: #fff;
+    transition: opacity 0.3s ease;
+}
+
+.swiper:hover .swiper-button-prev,
+.swiper:hover .swiper-button-next {
+    opacity: 1;
+}
+
+.swiper-button-prev::after,
+.swiper-button-next::after {
+    font-size: 18px;
+}
+
+.swiper-pagination-bullet {
+    background: #fff;
+    opacity: 0.6;
+}
+
+.swiper-pagination-bullet-active {
+    opacity: 1;
+}

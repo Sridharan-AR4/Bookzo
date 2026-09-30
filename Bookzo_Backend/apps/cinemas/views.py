@@ -1,0 +1,136 @@
+from datetime import datetime, time
+
+from django.core.exceptions import ValidationError
+from django.db.models import Count, Prefetch, Q
+from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.generics import ListAPIView, RetrieveAPIView
+from rest_framework.permissions import AllowAny
+
+from apps.base.pagination import BaseCursorPagination
+from apps.bookings.models import Booking
+from apps.slots.models import Slot
+
+from .filters import CinemaFilter
+from .models import Cinema
+from .serializers import CinemaSerializer, CinemaSlotSerializer
+
+
+class CinemaListView(ListAPIView):
+    """
+    API endpoint for listing cinemas
+
+    Endpoint:
+        - GET /api/cinemas/
+
+    Permissons:
+        - Allowany
+
+    Description:
+    - Returns list of cinemas
+    - Supports filtering by city
+    - Cursor paginated
+
+    Response:
+        200 OK
+        {
+            "next": null,
+            "previous": null,
+            "results": [
+                {
+                    "id": int,
+                    "name": string,
+                    "location": string,
+                    "rows": int,
+                    "seats_per_row": int,
+                    "city": string,
+                    "slug": string
+                }
+            ]
+        }
+    """
+
+    queryset = Cinema.objects.all().select_related("city")
+    serializer_class = CinemaSerializer
+    permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = CinemaFilter
+    pagination_class = BaseCursorPagination
+
+
+class CinemaDetailsView(RetrieveAPIView):
+    """
+    API Endpoint for retrieving details of a single cinema with slots
+
+    Endpoint:
+        - GET /api/cinemas/<slug>/slots
+
+    Permissions:
+        - Allowany
+
+    Response:
+        200 OK
+        {
+            "id": int,
+            "name": string,
+            "location": string,
+            "duration": string,
+            "rows": int,
+            "seats_per_row": int,
+            "movies": [slots]
+        }
+
+    Errors:
+        404 Not Found:
+            - Cinema Not Found
+    """
+
+    serializer_class = CinemaSlotSerializer
+    permission_classes = [AllowAny]
+
+    lookup_field = "slug"
+
+    def get_queryset(self):
+        date = self.request.query_params.get("date")
+        today = timezone.localdate()
+
+        if date:
+            selced_date = datetime.strptime(date, "%Y-%m-%d").date()
+        else:
+            selced_date = timezone.localdate()
+
+        if selced_date < today:
+            raise ValidationError("Date cannot be in the past")
+
+        day_start = timezone.make_aware(datetime.combine(selced_date, time.min))
+        day_end = timezone.make_aware(datetime.combine(selced_date, time.max))
+
+        if selced_date == today:
+            slot_filter = {
+                "date_time__gte": timezone.now(),
+                "date_time__lte": day_end,
+            }
+        else:
+            slot_filter = {
+                "date_time__range": (day_start, day_end),
+            }
+
+        active_slots = (
+            Slot.objects.filter(**slot_filter)
+            .select_related(
+                "movie",
+                "language",
+            )
+            .annotate(
+                booked_seats=Count(
+                    "bookings__seats",
+                    distinct=True,
+                    filter=Q(bookings__status=Booking.Status.BOOKED),
+                )
+            )
+            .order_by("date_time")
+        )
+
+        return Cinema.objects.prefetch_related(
+            Prefetch("slots", queryset=active_slots, to_attr="active_slots")
+        )

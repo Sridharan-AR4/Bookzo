@@ -1,0 +1,15 @@
+export const API_ENDPOINTS = {
+    LOGIN: '/auth/login',
+    REGISTER: '/auth/register',
+    REFRESH: '/auth/login/refresh',
+    LOGOUT: '/auth/logout',
+    USER_PROFILE: '/user',
+    USER_BOOKING_HISTORY: '/user/history',
+    GENRES: '/filters/genres',
+    LANGUAGES: '/filters/languages',
+    CITIES: '/filters/cities',
+    MOVIES: '/movies',
+    CINEMAS: '/cinemas',
+    BOOKINGS: '/bookings',
+    REVIEWS: '/reviews',
+} as const;
